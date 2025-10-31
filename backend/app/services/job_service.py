@@ -1,10 +1,12 @@
 # app/services/job_service.py
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from app.api.v1.hr.schemas import JobCreate
 from datetime import datetime
 
+
 def create_job(db: Session, job: JobCreate):
-    query = """
+    query = text("""
         INSERT INTO jobs (
             created_by, title, job_code, department, location, employment_type,
             experience_required, salary_range, jd, key_skills, additional_skills,
@@ -15,10 +17,11 @@ def create_job(db: Session, job: JobCreate):
             :openings, :posted_date, :closing_date, :status, :approved_by, :approved_date
         );
         SELECT SCOPE_IDENTITY() AS job_id;
-    """
+    """)
+
     # Default posted_date if not provided
     posted_date = job.posted_date or datetime.now()
-    
+
     result = db.execute(query, {
         "created_by": job.created_by,
         "title": job.title,
@@ -43,10 +46,8 @@ def create_job(db: Session, job: JobCreate):
     return job_id
 
 
-
-
-    def get_active_jobs(db: Session):
-    query = """
+def get_active_jobs(db: Session):
+    query = text("""
         SELECT job_id, created_by, title, job_code, department, location,
                employment_type, experience_required, salary_range, jd,
                key_skills, additional_skills, openings, posted_date,
@@ -54,8 +55,8 @@ def create_job(db: Session, job: JobCreate):
         FROM jobs
         WHERE status = 'open'
         ORDER BY posted_date DESC
-    """
+    """)
+    
     result = db.execute(query)
     jobs = [dict(row) for row in result.fetchall()]
     return jobs
-

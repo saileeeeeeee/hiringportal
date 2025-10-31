@@ -9,7 +9,9 @@ class JobCreate(BaseModel):
     job_code: Optional[str] = None
     department: Optional[str] = None
     location: Optional[str] = None
-    employment_type: Optional[str] = Field(None, regex="^(Full-time|Part-time|Contract|Internship)$")
+    employment_type: Optional[str] = Field(
+        None, pattern="^(Full-time|Part-time|Contract|Internship)$"
+    )
     experience_required: Optional[str] = None
     salary_range: Optional[str] = None
     jd: Optional[str] = None
@@ -18,6 +20,8 @@ class JobCreate(BaseModel):
     openings: Optional[int] = 1
     posted_date: Optional[datetime] = None
     closing_date: Optional[datetime] = None
-    status: Optional[str] = Field('open', regex="^(open|on_hold|closed)$")
+    status: Optional[str] = Field(
+        'open', pattern="^(open|on_hold|closed)$"
+    )
     approved_by: Optional[int] = None
     approved_date: Optional[datetime] = None

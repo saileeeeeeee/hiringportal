@@ -1,5 +1,6 @@
 # app/config.py
 from pydantic_settings import BaseSettings
+from typing import List
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "UBTI Hiring Portal"
@@ -10,6 +11,9 @@ class Settings(BaseSettings):
     DB_NAME: str
     DB_USER: str
     DB_PASSWORD: str
+
+    # CORS origins
+    BACKEND_CORS_ORIGINS: List[str] = []
 
     class Config:
         env_file = ".env"
