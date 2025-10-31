@@ -20,3 +20,7 @@ def create_user_endpoint(user: UserCreate, db: Session = Depends(get_db)):
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+    
+
+
+    

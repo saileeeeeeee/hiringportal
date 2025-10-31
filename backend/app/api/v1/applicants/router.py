@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.db.connection import get_db
-from app.services.applicant_service import create_applicant
+from app.services.applicant_service import create_applicant, get_all_applicants
 from app.api.v1.applicants.schemas import ApplicantCreate
 
 router = APIRouter(prefix="/applicants", tags=["Applicants"])
@@ -48,3 +48,21 @@ async def add_applicant(
         raise HTTPException(status_code=500, detail=str(e))
 
     return {"message": "Applicant created successfully", "applicant_id": applicant_id}
+
+
+
+
+
+@router.get("/", response_model=list[dict])
+async def get_applicants(db: Session = Depends(get_db)):
+    try:
+        applicants = get_all_applicants(db)
+        if not applicants:
+            raise HTTPException(status_code=404, detail="No applicants found")
+        return applicants
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching applicants: {str(e)}")
+    
+
+
+

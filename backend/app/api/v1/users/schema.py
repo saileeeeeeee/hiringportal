@@ -16,3 +16,6 @@ class UserCreate(BaseModel):
 
     # ✅ new Pydantic v2 config
     model_config = {"from_attributes": True}
+
+
+
