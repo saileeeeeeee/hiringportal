@@ -138,3 +138,8 @@ def evaluate_resume_match(resume_pdf_path, jd_text, high_priority_keywords, norm
         "resume_excerpt": resume_clean[:300],
         "jd_excerpt": jd_clean[:300]
     }
+
+
+
+
+
