@@ -22,7 +22,7 @@ STOPWORDS = set(stopwords.words('english'))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def evaluate_resume_match(resume_pdf_path, job_description_text, high_priority_keywords, normal_keywords, 
+def evaluate_resume_match(resume_pdf_path, jd_text, high_priority_keywords, normal_keywords, 
                           job_id, applicant_id, source, application_status, assigned_hr=None, 
                           assigned_manager=None, comments=None, db: Session = Depends(get_db)):
     """
@@ -30,7 +30,7 @@ def evaluate_resume_match(resume_pdf_path, job_description_text, high_priority_k
     
     Parameters:
     - resume_pdf_path: Path to the resume PDF.
-    - job_description_text: Job description text.
+    - jd_text: Job description text.
     - high_priority_keywords: Set of high-priority keywords (e.g., technical skills).
     - normal_keywords: Set of normal keywords (e.g., soft skills).
     - job_id: ID of the job.
@@ -82,7 +82,7 @@ def evaluate_resume_match(resume_pdf_path, job_description_text, high_priority_k
     # Extract resume text and preprocess both resume and JD text
     resume_raw = extract_text_from_pdf(resume_pdf_path)
     resume_clean = preprocess_text(resume_raw)
-    jd_clean = preprocess_text(job_description_text)
+    jd_clean = preprocess_text(jd_text)
 
     # Calculate semantic similarity and weighted keyword match score
     semantic_similarity = compute_overall_similarity(resume_clean, jd_clean)
