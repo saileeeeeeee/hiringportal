@@ -1,7 +1,6 @@
-# app/api/v1/applicants/router.py
 from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, List 
 from app.db.connection import get_db
 from app.services.applicant_service import create_applicant, get_all_applicants
 from app.api.v1.applicants.schemas import ApplicantCreate
@@ -10,6 +9,9 @@ router = APIRouter(prefix="/applicants", tags=["Applicants"])
 
 @router.post("/", status_code=201)
 async def add_applicant(
+    job_id: int = Form(...),  # Add job_id as a required field
+    source: str = Form(...),  # Add source as a required field
+    application_status: str = Form(...),  # Add application_status as a required field
     first_name: str = Form(...),
     last_name: str = Form(...),
     email: str = Form(...),
@@ -39,21 +41,25 @@ async def add_applicant(
         "expected_ctc": expected_ctc,
         "notice_period_days": notice_period_days,
         "skills": skills,
-        "location": location
+        "location": location,
     }
 
     try:
-        applicant_id = create_applicant(db, applicant_data, resume)
+        # Pass the required job_id, source, and application_status to the service layer
+        applicant_id = create_applicant(
+            db, 
+            applicant_data, 
+            resume,
+            job_id,  # Pass job_id here
+            source,  # Pass source here
+            application_status  # Pass application_status here
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
     return {"message": "Applicant created successfully", "applicant_id": applicant_id}
 
-
-
-
-
-@router.get("/", response_model=list[dict])
+@router.get("/", response_model=List[dict])
 async def get_applicants(db: Session = Depends(get_db)):
     try:
         applicants = get_all_applicants(db)
@@ -62,7 +68,3 @@ async def get_applicants(db: Session = Depends(get_db)):
         return applicants
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching applicants: {str(e)}")
-    
-
-
-

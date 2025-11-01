@@ -4,6 +4,10 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from datetime import datetime
+from .aishortlist import evaluate_resume_match  # Ensure this import is correct
+from typing import List
+from fastapi import HTTPException, Depends
+from app.db.connection import get_db
 
 # Setup logging configuration
 logging.basicConfig(
@@ -31,8 +35,8 @@ def save_resume(file, applicant_id: int):
         logging.error(f"Error while saving resume for applicant {applicant_id}: {e}")
         raise  # Re-raise the exception after logging
 
-def create_applicant(db: Session, applicant_data: dict, resume_file):
-    """Function to create an applicant and save their resume if provided."""
+def create_applicant(db: Session, applicant_data: dict, resume_file, job_id: int, source: str, application_status: str, assigned_hr: str = None, assigned_manager: str = None, comments: str = None):
+    """Function to create an applicant, save their resume, and create an application entry in the applications table."""
     try:
         # Generate current timestamp for created_at and updated_at
         now = datetime.now()
@@ -43,7 +47,7 @@ def create_applicant(db: Session, applicant_data: dict, resume_file):
         # Log applicant data being inserted
         logging.info(f"Inserting applicant data: {applicant_data}")
 
-        # Insert applicant data into the database
+        # Insert applicant data into the applicants table
         insert_query = text(""" 
             INSERT INTO applicants (
                 first_name, last_name, email, phone, linkedin_url,
@@ -56,7 +60,7 @@ def create_applicant(db: Session, applicant_data: dict, resume_file):
             );
         """)
         
-        # Execute insert query
+        # Execute insert query for applicant
         logging.info("Executing insert query for applicant.")
         db.execute(insert_query, params)
         
@@ -77,18 +81,118 @@ def create_applicant(db: Session, applicant_data: dict, resume_file):
             db.execute(text("UPDATE applicants SET resume_url = :resume_url WHERE applicant_id = :applicant_id"),
                        {"resume_url": file_path, "applicant_id": applicant_id})
 
+        # Insert into applications table
+        application_params = {
+            "applicant_id": applicant_id,
+            "job_id": job_id,
+            "application_status": application_status,
+            "source": source,
+            "assigned_hr": assigned_hr,
+            "assigned_manager": assigned_manager,
+            "comments": comments,
+            "created_at": now,
+            "updated_at": now
+        }
+        
+        logging.info(f"Inserting application for applicant {applicant_id} and job {job_id}.")
+        
+        insert_application_query = text("""
+            INSERT INTO applications (
+                applicant_id, job_id, application_status, source, assigned_hr,
+                assigned_manager, comments, created_at, updated_at
+            ) VALUES (
+                :applicant_id, :job_id, :application_status, :source, :assigned_hr,
+                :assigned_manager, :comments, :created_at, :updated_at
+            );
+        """)
+        
+        # Insert into applications table
+        db.execute(insert_application_query, application_params)
+        logging.info(f"Application created for applicant {applicant_id} and job {job_id}.")
+
         # Commit the transaction after insert and update
         logging.info("Committing the transaction.")
         db.commit()
-        logging.info(f"Applicant {applicant_id} created and resume URL updated successfully.")
-        return applicant_id
+
+        # Trigger resume evaluation (passing relevant params)
+        evaluation_result = trigger_evaluate_resume_match(
+            resume_pdf_path=file_path,
+            job_description_text=get_job_description(job_id, db),
+            high_priority_keywords=get_high_priority_keywords(job_id, db),
+            normal_keywords=get_normal_keywords(job_id, db),
+            job_id=job_id,
+            applicant_id=applicant_id,
+            source=source,
+            application_status=application_status,
+            assigned_hr=assigned_hr,
+            assigned_manager=assigned_manager,
+            comments=comments,
+            db=db
+        )
+
+        logging.info(f"Evaluation result: {evaluation_result}")
+        return {
+            "applicant_id": applicant_id,
+            "resume_url": file_path,
+            "evaluation_result": evaluation_result,
+            **{k: v for k, v in applicant_data.items() if k != 'resume_url'}
+        }
     
     except Exception as e:
         # Rollback in case of any error
-        logging.error(f"Error while creating applicant: {e}")
+        logging.error(f"Error while creating applicant and application: {e}")
         db.rollback()
         logging.debug("Transaction rolled back.")
-        raise  # Re-raise the exception to handle it higher up
+        raise HTTPException(status_code=500, detail=f"Failed to create applicant and application: {str(e)}")
+
+# Function to evaluate resume match (triggered after creating applicant)
+def trigger_evaluate_resume_match(
+    resume_pdf_path, job_description_text, high_priority_keywords, normal_keywords, 
+    job_id, applicant_id, source, application_status, 
+    assigned_hr=None, assigned_manager=None, comments=None, db: Session = Depends(get_db)
+):
+    """Evaluates a resume match against a job description and stores the results in the database."""
+    try:
+        # Assume `evaluate_resume_match` is defined earlier in the system as provided by you earlier.
+        result = evaluate_resume_match(
+            resume_pdf_path=resume_pdf_path,
+            job_description_text=job_description_text,
+            high_priority_keywords=high_priority_keywords,
+            normal_keywords=normal_keywords,
+            job_id=job_id,
+            applicant_id=applicant_id,
+            source=source,
+            application_status=application_status,
+            assigned_hr=assigned_hr,
+            assigned_manager=assigned_manager,
+            comments=comments,
+            db=db
+        )
+        return result
+    except Exception as e:
+        logging.error(f"Failed to evaluate resume match: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error during resume evaluation: {str(e)}")
+
+# Example of helper functions to retrieve job description and keywords
+def get_job_description(job_id: int, db: Session) -> str:
+    """Fetch job description from database for the given job_id."""
+    query = text("SELECT job_description FROM jobs WHERE job_id = :job_id")
+    result = db.execute(query, {"job_id": job_id}).fetchone()
+    return result[0] if result else ""
+
+def get_high_priority_keywords(job_id: int, db: Session) -> set:
+    """Fetch high priority keywords for the job."""
+    query = text("SELECT keywords FROM job_keywords WHERE job_id = :job_id AND priority = 'high'")
+    result = db.execute(query, {"job_id": job_id}).fetchall()
+    return {row[0] for row in result}
+
+def get_normal_keywords(job_id: int, db: Session) -> set:
+    """Fetch normal keywords for the job."""
+    query = text("SELECT keywords FROM job_keywords WHERE job_id = :job_id AND priority = 'normal'")
+    result = db.execute(query, {"job_id": job_id}).fetchall()
+    return {row[0] for row in result}
+
+
 
 def get_all_applicants(db: Session) -> List[dict]:
     """Function to fetch all applicants."""

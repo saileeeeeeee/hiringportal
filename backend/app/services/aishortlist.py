@@ -9,10 +9,10 @@ from sqlalchemy import text
 from datetime import datetime
 from fastapi import HTTPException, Depends
 from app.config import settings
-from .connection import get_db  # Import the database dependency
+from app.db.connection import get_db
 
 # Download stopwords if not already present
-nltk.download('stopwords')
+#nltk.download('stopwords')
 
 # Load the embedding model and stopwords
 MODEL = SentenceTransformer('all-MiniLM-L6-v2')
