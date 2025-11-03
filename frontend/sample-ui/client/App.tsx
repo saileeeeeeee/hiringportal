@@ -1,3 +1,4 @@
+// src/App.tsx
 import "./global.css";
 import "./i18n/config";
 
@@ -11,7 +12,6 @@ import { Provider } from "react-redux";
 import { store } from "./store";
 import { ThemeProvider } from "./contexts/ThemeContext";
 
-// Pages
 import Home from "./pages/Home";
 import PublicJobs from "./pages/PublicJobs";
 import JobDetails from "./pages/JobDetails";
@@ -34,20 +34,17 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              {/* Public Routes */}
               <Route path="/" element={<Home />} />
               <Route path="/jobs" element={<PublicJobs />} />
               <Route path="/jobs/:jobId" element={<JobDetails />} />
               <Route path="/apply/:jobId" element={<ApplyJob />} />
               <Route path="/login" element={<Login />} />
 
-              {/* HR Routes (Now open to all users, no restrictions) */}
               <Route path="/hr/dashboard" element={<Dashboard />} />
               <Route path="/hr/jobs" element={<Jobs />} />
               <Route path="/hr/applicants" element={<Applicants />} />
               <Route path="/hr/interviews" element={<Interviews />} />
 
-              {/* Catch-all Route */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

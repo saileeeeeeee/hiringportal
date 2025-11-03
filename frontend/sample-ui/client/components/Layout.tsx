@@ -21,7 +21,7 @@ export default function Layout({ children }: LayoutProps) {
           <nav className="flex items-center gap-1 md:gap-2">
             <NavLink href="/" icon={<Home className="w-4 h-4" />} label="Dashboard" />
             <NavLink href="/jobs" icon={<Briefcase className="w-4 h-4" />} label="Jobs" />
-            <NavLink href="/applicants" icon={<Users className="w-4 h-4" />} label="Applicants" />
+            <NavLink href="/hr/applicants" icon={<Users className="w-4 h-4" />} label="Applicants" />
           </nav>
         </div>
       </header>

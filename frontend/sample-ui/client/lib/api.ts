@@ -55,14 +55,14 @@ export const jobsAPI = {
 };
 
 export const applicantsAPI = {
-  getApplicants: (params?: any) => apiClient.get('/api/v1/applicants', { params }),
+  getApplicants: (params?: any) => apiClient.get('/api/v1/users/applicants/', { params }),
   submitApplication: (data: FormData) =>
-    apiClient.post('/api/v1/applicants', data, {
+    apiClient.post('/api/v1/users/applicants/', data, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
-  getApplicantDetails: (id: number) => apiClient.get(`/api/v1/applicants/${id}`),
+  getApplicantDetails: (id: number) => apiClient.get(`/api/v1/users/applicants/${id}`),
   updateApplicantStatus: (id: number, data: any) =>
-    apiClient.put(`/api/v1/applicants/${id}`, data),
+    apiClient.put(`/api/v1/users/applicants/${id}`, data),
 };
 
 export const interviewsAPI = {

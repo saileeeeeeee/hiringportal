@@ -200,31 +200,97 @@ def get_normal_keywords(job_id: int, db: Session) -> set:
     return {row[0] for row in result}
 
 
-def get_all_applicants(db: Session) -> List[dict]:
-    """Function to fetch all applicants."""
-    try:
-        # Query all applicants
-        query = text("SELECT * FROM applicants")
-        result = db.execute(query).fetchall()
 
-        # If no applicants are found, return an empty list
+
+
+
+def get_all_applicants(db: Session) -> List[dict]:
+    """
+    Fetch ALL applications + applicant data (even if applicant missing)
+    Uses LEFT JOIN to show application even if applicant deleted
+    """
+    try:
+        query = text("""
+            SELECT 
+                app.application_id,
+                app.job_id,
+                app.applicant_id,
+                app.applied_date,
+                app.source,
+                app.skills_matching_score,
+                app.jd_matching_score,
+                app.resume_overall_score,
+                app.application_status,
+                app.assigned_hr,
+                app.assigned_manager,
+                app.comments,
+                app.updated_at AS app_updated_at,
+                
+                a.applicant_id AS a_applicant_id,
+                a.first_name,
+                a.last_name,
+                a.email,
+                a.phone,
+                a.linkedin_url,
+                a.resume_url,
+                a.experience_years,
+                a.education,
+                a.current_company,
+                a.current_role,
+                a.expected_ctc,
+                a.notice_period_days,
+                a.skills,
+                a.location,
+                a.created_at AS a_created_at,
+                a.updated_at AS a_updated_at
+            FROM applications app
+            LEFT JOIN applicants a ON app.application_id = a.applicant_id
+            ORDER BY app.applied_date DESC
+        """)
+
+        result = db.execute(query).mappings().fetchall()
         if not result:
             return []
 
-        # Construct applicant records
         applicants = []
         for row in result:
             applicants.append({
-                "applicant_id": row["applicant_id"],
-                "first_name": row["first_name"],
-                "last_name": row["last_name"],
-                "email": row["email"],
-                "phone": row["phone"],
-                "linkedin_url": row["linkedin_url"],
-                "resume_url": row["resume_url"]
+                # Application
+                "application_id": row.get("application_id"),
+                "job_id": row.get("job_id"),
+                "applicant_id": row.get("applicant_id"),
+                "applied_date": row.get("applied_date"),
+                "source": row.get("source"),
+                "skills_matching_score": row.get("skills_matching_score"),
+                "jd_matching_score": row.get("jd_matching_score"),
+                "resume_overall_score": row.get("resume_overall_score"),
+                "application_status": row.get("application_status") or "pending",
+                "assigned_hr": row.get("assigned_hr"),
+                "assigned_manager": row.get("assigned_manager"),
+                "comments": row.get("comments"),
+                "updated_at": row.get("app_updated_at"),
+
+                # Applicant (may be null)
+                "first_name": row.get("first_name") or "Unknown",
+                "last_name": row.get("last_name") or "Applicant",
+                "email": row.get("email") or "N/A",
+                "phone": row.get("phone"),
+                "linkedin_url": row.get("linkedin_url"),
+                "resume_url": row.get("resume_url"),
+                "experience_years": row.get("experience_years", 0),
+                "education": row.get("education"),
+                "current_company": row.get("current_company"),
+                "current_role": row.get("current_role"),
+                "expected_ctc": row.get("expected_ctc", 0.0),
+                "notice_period_days": row.get("notice_period_days", 0),
+                "skills": row.get("skills"),
+                "location": row.get("location"),
+                "created_at": row.get("a_created_at"),
+                "applicant_updated_at": row.get("a_updated_at"),
             })
+
         return applicants
 
     except Exception as e:
-        logging.error(f"Error fetching applicants: {e}")
+        logging.error(f"Database error in get_all_applicants: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch applicants.")
