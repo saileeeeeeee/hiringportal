@@ -8,22 +8,37 @@ from fastapi import HTTPException
 
 
 
+from sqlalchemy import text
 
-    
+# app/services/job_service.py
+
 def get_active_jobs(db: Session):
-        query = text("SELECT * FROM jobs WHERE status = 'open' ")
-        result = db.execute(query).fetchall()
-        return [
-            {
-                "job_id": row[0],
-                "title": row[1],
-                "description": row[2],
-                "location": row[3],
-                "posted_at": row[4]
-            }
-            for row in result
-        ]
-    
+    query = text("""
+        SELECT 
+            job_id,
+            created_by,
+            title,
+            job_code,
+            department,
+            location,
+            employment_type,
+            experience_required,
+            salary_range,
+            jd,
+            key_skills,
+            additional_skills,
+            openings,
+            posted_date,
+            closing_date,
+            status,
+            approved_by,
+            approved_date
+        FROM jobs 
+        WHERE status = 'open'
+        ORDER BY posted_date DESC
+    """)
+    result = db.execute(query).mappings().fetchall()
+    return [dict(row) for row in result]  # ← Returns full dict
 
 
 def create_job(db: Session, job: JobCreate):
@@ -82,3 +97,22 @@ def create_job(db: Session, job: JobCreate):
         print(f"Error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error creating job: {str(e)}")
     
+
+
+
+
+# app/services/job_service.py
+def get_job_by_id(db: Session, job_id: int):
+    query = text("""
+        SELECT 
+            job_id, created_by, title, job_code, department, location,
+            employment_type, experience_required, salary_range, jd,
+            key_skills, additional_skills, openings, posted_date,
+            closing_date, status, approved_by, approved_date
+        FROM jobs 
+        WHERE job_id = :job_id
+    """)
+    result = db.execute(query, {"job_id": job_id}).mappings().fetchone()
+    if not result:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return dict(result)

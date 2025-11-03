@@ -1,8 +1,10 @@
+'use client';
+
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
-import { ArrowLeft, Upload, AlertCircle, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Upload, CheckCircle, Loader2, X } from 'lucide-react';
 import { jobsAPI, applicantsAPI } from '@/lib/api';
 import { Job } from '@shared/api';
 import Navbar from '@/components/Navbar';
@@ -10,24 +12,11 @@ import Navbar from '@/components/Navbar';
 const validationSchema = Yup.object({
   first_name: Yup.string().required('First name is required'),
   last_name: Yup.string().required('Last name is required'),
-  email: Yup.string()
-    .email('Invalid email address')
-    .required('Email is required'),
-  phone: Yup.string(),
-  linkedin_url: Yup.string().url('Invalid URL'),
-  experience_years: Yup.number()
-    .min(0, 'Experience must be 0 or more')
-    .required('Experience is required'),
-  education: Yup.string(),
-  current_company: Yup.string(),
-  current_role: Yup.string(),
-  expected_ctc: Yup.number().min(0, 'Expected CTC must be positive'),
-  notice_period_days: Yup.number()
-    .min(0, 'Notice period must be 0 or more')
-    .required('Notice period is required'),
-  skills: Yup.string(),
-  location: Yup.string(),
-  resume: Yup.mixed().required('Resume is required'),
+  email: Yup.string().email('Invalid email').required('Email is required'),
+  phone: Yup.string().matches(/^\d{10}$/, 'Phone must be 10 digits').required('Phone required'),
+  experience_years: Yup.number().min(0).max(50).required('Required'),
+  notice_period_days: Yup.number().min(0).max(90).required('Required'),
+  resume: Yup.mixed<File>().required('Resume is required'),
 });
 
 export default function ApplyJob() {
@@ -36,22 +25,25 @@ export default function ApplyJob() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
-  const [dragActive, setDragActive] = useState(false);
 
   useEffect(() => {
-    if (jobId) {
-      fetchJobDetails();
+    if (!jobId || isNaN(Number(jobId))) {
+      navigate('/jobs');
+      return;
     }
-  }, [jobId]);
+    fetchJob();
+  }, [jobId, navigate]);
 
-  const fetchJobDetails = async () => {
+  const fetchJob = async () => {
     try {
-      const response = await jobsAPI.getJobById(Number(jobId));
-      setJob(response.data);
-    } catch (error) {
-      console.error('Error fetching job:', error);
+      setLoading(true);
+      const { data } = await jobsAPI.getJobById(Number(jobId));
+      setJob(data);
+    } catch (err) {
+      console.error('Job fetch error:', err);
+      navigate('/jobs');
     } finally {
       setLoading(false);
     }
@@ -63,462 +55,283 @@ export default function ApplyJob() {
       last_name: '',
       email: '',
       phone: '',
-      linkedin_url: '',
       experience_years: 0,
-      education: '',
-      current_company: '',
-      current_role: '',
-      expected_ctc: 0,
       notice_period_days: 30,
-      skills: '',
-      location: '',
-      resume: null,
+      resume: null as File | null,
     },
     validationSchema,
-    onSubmit: async () => {
-      if (!resumeFile) {
-        alert('Please upload a resume');
-        return;
-      }
+    onSubmit: async (values, { setSubmitting }) => {
+      if (!resumeFile || !jobId) return;
+
+      const formData = new FormData();
+      formData.append('first_name', values.first_name);
+      formData.append('last_name', values.last_name);
+      formData.append('email', values.email);
+      formData.append('phone', values.phone);
+      formData.append('experience_years', values.experience_years.toString());
+      formData.append('notice_period_days', values.notice_period_days.toString());
+      formData.append('job_id', jobId);
+      formData.append('source', 'Website');
+      formData.append('application_status', 'applied');
+      formData.append('resume', resumeFile);
 
       try {
         setSubmitting(true);
-        const formData = new FormData();
-        formData.append('first_name', formik.values.first_name);
-        formData.append('last_name', formik.values.last_name);
-        formData.append('email', formik.values.email);
-        formData.append('phone', formik.values.phone || '');
-        formData.append('linkedin_url', formik.values.linkedin_url || '');
-        formData.append('experience_years', String(formik.values.experience_years));
-        formData.append('education', formik.values.education || '');
-        formData.append('current_company', formik.values.current_company || '');
-        formData.append('current_role', formik.values.current_role || '');
-        formData.append('expected_ctc', String(formik.values.expected_ctc || 0));
-        formData.append('notice_period_days', String(formik.values.notice_period_days));
-        formData.append('skills', formik.values.skills || '');
-        formData.append('location', formik.values.location || '');
-        formData.append('job_id', jobId!);
-        formData.append('source', 'Website');
-        formData.append('application_status', 'applied');
-        formData.append('resume', resumeFile);
-
+        setSubmitting(true);
         await applicantsAPI.submitApplication(formData);
-        setSubmitSuccess(true);
-
-        setTimeout(() => {
-          navigate('/jobs');
-        }, 2000);
-      } catch (error) {
-        console.error('Error submitting application:', error);
-        alert('Error submitting application. Please try again.');
+        setSuccess(true);
+        setTimeout(() => navigate('/jobs'), 3000);
+      } catch (err: any) {
+        const msg = err?.response?.data?.detail || err.message || 'Submission failed';
+        alert(`Error: ${msg}`);
       } finally {
         setSubmitting(false);
       }
     },
   });
 
-  const handleResumeChange = (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Resume must be less than 5MB');
-      return;
-    }
+  const handleFile = (file: File) => {
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const allowed = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
 
-    const validTypes = ['application/pdf', 'application/msword', 'text/plain'];
-    if (!validTypes.includes(file.type)) {
-      alert('Resume must be PDF, DOC, or TXT');
-      return;
-    }
+    if (file.size > maxSize) return alert('File too large (max 5MB)');
+    if (!allowed.includes(file.type)) return alert('Only PDF, DOC, DOCX allowed');
 
     setResumeFile(file);
     formik.setFieldValue('resume', file);
+    formik.setFieldTouched('resume', true);
   };
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
+  const removeFile = () => {
+    setResumeFile(null);
+    formik.setFieldValue('resume', null);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleResumeChange(e.dataTransfer.files[0]);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-          <div className="inline-block animate-spin">
-            <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full"></div>
-          </div>
-          <p className="mt-4 text-muted-foreground">Loading job details...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!job) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="bg-card border border-border rounded-xl p-12 text-center">
-            <p className="text-lg font-medium text-foreground mb-4">Job not found</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (submitSuccess) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Navbar />
-        <div className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6 mt-20">
-          <CheckCircle className="w-16 h-16 text-accent mx-auto" />
-          <div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">Application Submitted!</h1>
-            <p className="text-muted-foreground">
-              Thank you for applying. We'll review your application and get back to you soon.
-            </p>
-          </div>
-          <p className="text-sm text-muted-foreground">Redirecting to jobs page...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <Loading />;
+  if (!job) return <NotFound navigate={navigate} />;
+  if (success) return <SuccessScreen />;
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Header */}
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        {/* Back Button */}
         <button
-          onClick={() => navigate(`/jobs/${jobId}`)}
-          className="flex items-center gap-2 text-primary hover:gap-3 transition-all mb-6 font-medium"
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-primary hover:text-primary/80 mb-8 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Job
         </button>
 
-        {/* Job Info Card */}
-        <div className="bg-card border border-border rounded-xl p-6 mb-8">
-          <h1 className="text-3xl font-bold text-foreground">{job.title}</h1>
-          <p className="text-muted-foreground mt-2">{job.department} • {job.location}</p>
+        {/* Job Header */}
+        <div className="bg-card border border-border rounded-xl p-8 mb-8 shadow-sm">
+          <h1 className="text-3xl font-bold text-foreground mb-2">{job.title}</h1>
+          <div className="flex flex-wrap gap-4 text-muted-foreground">
+            <span>{job.department}</span>
+            <span>•</span>
+            <span>{job.location}</span>
+            {job.salary_range && (
+              <>
+                <span>•</span>
+                <span>{job.salary_range}</span>
+              </>
+            )}
+          </div>
         </div>
 
-        {/* Application Form */}
-        <div className="bg-card border border-border rounded-xl p-8 animate-fade-in">
-          <h2 className="text-2xl font-bold text-foreground mb-6">Application Form</h2>
+        {/* Form */}
+        <form onSubmit={formik.handleSubmit} className="bg-card border border-border rounded-xl p-8 shadow-lg">
+          <h2 className="text-2xl font-bold mb-8 text-center">Apply Now</h2>
 
-          <form onSubmit={formik.handleSubmit} className="space-y-8">
-            {/* Personal Information Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-foreground mb-4">Personal Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* First Name */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    First Name *
-                  </label>
-                  <input
-                    type="text"
-                    {...formik.getFieldProps('first_name')}
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                      formik.touched.first_name && formik.errors.first_name
-                        ? 'border-destructive focus:ring-destructive'
-                        : 'border-border focus:ring-primary'
-                    }`}
-                    placeholder="John"
-                  />
-                  {formik.touched.first_name && formik.errors.first_name && (
-                    <p className="mt-1 text-sm text-destructive">{formik.errors.first_name}</p>
-                  )}
-                </div>
+          {/* Personal Info */}
+          <Section title="Personal Information">
+            <Input name="first_name" label="First Name *" formik={formik} />
+            <Input name="last_name" label="Last Name *" formik={formik} />
+            <Input name="email" label="Email Address *" type="email" formik={formik} />
+            <Input name="phone" label="Phone Number *" formik={formik} />
+          </Section>
 
-                {/* Last Name */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Last Name *
-                  </label>
-                  <input
-                    type="text"
-                    {...formik.getFieldProps('last_name')}
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                      formik.touched.last_name && formik.errors.last_name
-                        ? 'border-destructive focus:ring-destructive'
-                        : 'border-border focus:ring-primary'
-                    }`}
-                    placeholder="Doe"
-                  />
-                  {formik.touched.last_name && formik.errors.last_name && (
-                    <p className="mt-1 text-sm text-destructive">{formik.errors.last_name}</p>
-                  )}
-                </div>
+          {/* Experience */}
+          <Section title="Professional Details">
+            <Input
+              name="experience_years"
+              label="Years of Experience *"
+              type="number"
+              formik={formik}
+              placeholder="e.g. 5"
+            />
+            <Input
+              name="notice_period_days"
+              label="Notice Period (days) *"
+              type="number"
+              formik={formik}
+              placeholder="e.g. 30"
+            />
+          </Section>
 
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    {...formik.getFieldProps('email')}
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                      formik.touched.email && formik.errors.email
-                        ? 'border-destructive focus:ring-destructive'
-                        : 'border-border focus:ring-primary'
-                    }`}
-                    placeholder="john@example.com"
-                  />
-                  {formik.touched.email && formik.errors.email && (
-                    <p className="mt-1 text-sm text-destructive">{formik.errors.email}</p>
-                  )}
-                </div>
-
-                {/* Phone */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Phone
-                  </label>
-                  <input
-                    type="tel"
-                    {...formik.getFieldProps('phone')}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="+1 (555) 000-0000"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Professional Information Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-foreground mb-4">Professional Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Current Company */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Current Company
-                  </label>
-                  <input
-                    type="text"
-                    {...formik.getFieldProps('current_company')}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Acme Inc."
-                  />
-                </div>
-
-                {/* Current Role */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Current Role
-                  </label>
-                  <input
-                    type="text"
-                    {...formik.getFieldProps('current_role')}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Senior Developer"
-                  />
-                </div>
-
-                {/* Experience Years */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Years of Experience *
-                  </label>
-                  <input
-                    type="number"
-                    {...formik.getFieldProps('experience_years')}
-                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                      formik.touched.experience_years && formik.errors.experience_years
-                        ? 'border-destructive focus:ring-destructive'
-                        : 'border-border focus:ring-primary'
-                    }`}
-                    min="0"
-                  />
-                  {formik.touched.experience_years && formik.errors.experience_years && (
-                    <p className="mt-1 text-sm text-destructive">{formik.errors.experience_years}</p>
-                  )}
-                </div>
-
-                {/* Notice Period */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Notice Period (days) *
-                  </label>
-                  <input
-                    type="number"
-                    {...formik.getFieldProps('notice_period_days')}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    min="0"
-                  />
-                </div>
-
-                {/* LinkedIn */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    LinkedIn URL
-                  </label>
-                  <input
-                    type="url"
-                    {...formik.getFieldProps('linkedin_url')}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="https://linkedin.com/in/johndoe"
-                  />
-                </div>
-
-                {/* Expected CTC */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Expected CTC (Annual)
-                  </label>
-                  <input
-                    type="number"
-                    {...formik.getFieldProps('expected_ctc')}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    min="0"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Additional Information Section */}
-            <div>
-              <h3 className="text-lg font-semibold text-foreground mb-4">Additional Information</h3>
-              <div className="space-y-4">
-                {/* Education */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Education
-                  </label>
-                  <input
-                    type="text"
-                    {...formik.getFieldProps('education')}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="e.g., Bachelor's in Computer Science"
-                  />
-                </div>
-
-                {/* Skills */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Skills (comma-separated)
-                  </label>
-                  <textarea
-                    {...formik.getFieldProps('skills')}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    rows={3}
-                    placeholder="React, TypeScript, Python, SQL..."
-                  />
-                </div>
-
-                {/* Location */}
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Location
-                  </label>
-                  <input
-                    type="text"
-                    {...formik.getFieldProps('location')}
-                    className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="City, Country"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Resume Upload */}
-            <div>
-              <h3 className="text-lg font-semibold text-foreground mb-4">Resume Upload *</h3>
+          {/* Resume Upload */}
+          <Section title="Upload Resume *">
+            {!resumeFile ? (
               <div
-                onDragEnter={handleDrag}
-                onDragLeave={handleDrag}
-                onDragOver={handleDrag}
-                onDrop={handleDrop}
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  dragActive
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-primary/50'
-                }`}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file) handleFile(file);
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                className="border-2 border-dashed border-border rounded-xl p-12 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all"
               >
-                <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-                <p className="font-medium text-foreground mb-1">
-                  Drag and drop your resume here
-                </p>
-                <p className="text-sm text-muted-foreground mb-4">or</p>
-                <label className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity cursor-pointer">
-                  <Upload className="w-4 h-4" />
+                <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-lg font-medium mb-2">Drop your resume here</p>
+                <p className="text-sm text-muted-foreground mb-4">or click to browse</p>
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                  className="hidden"
+                  id="resume-upload"
+                />
+                <label
+                  htmlFor="resume-upload"
+                  className="inline-block px-6 py-3 bg-primary text-white rounded-lg font-medium hover:bg-primary/90 cursor-pointer transition"
+                >
                   Choose File
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,.txt"
-                    onChange={(e) => {
-                      if (e.target.files?.[0]) {
-                        handleResumeChange(e.target.files[0]);
-                      }
-                    }}
-                    className="hidden"
-                  />
                 </label>
-                <p className="text-xs text-muted-foreground mt-3">
-                  PDF, DOC, or TXT • Max 5MB
-                </p>
               </div>
-
-              {resumeFile && (
-                <div className="mt-4 p-4 bg-accent/10 border border-accent/30 rounded-lg flex items-center gap-3">
-                  <CheckCircle className="w-5 h-5 text-accent flex-shrink-0" />
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground">{resumeFile.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(resumeFile.size / 1024).toFixed(2)} KB
-                    </p>
+            ) : (
+              <div className="p-6 bg-green-50 border border-green-200 rounded-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                    <div>
+                      <p className="font-semibold text-foreground">{resumeFile.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {(resumeFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={removeFile}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
+              </div>
+            )}
+            {formik.touched.resume && formik.errors.resume && (
+              <p className="text-red-500 text-sm mt-2">{formik.errors.resume}</p>
+            )}
+          </Section>
+
+          {/* Submit */}
+          <div className="flex gap-4 pt-6">
+            <button
+              type="submit"
+              disabled={submitting || !resumeFile || formik.isSubmitting}
+              className="flex-1 bg-primary text-white py-4 rounded-xl font-bold text-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-3"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit Application'
               )}
-            </div>
-
-            {/* Terms */}
-            <div className="bg-muted/50 border border-border rounded-lg p-4 flex gap-3">
-              <AlertCircle className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-muted-foreground">
-                By submitting this application, you agree to our terms and conditions. 
-                We'll review your application and get back to you if you're selected for the next round.
-              </p>
-            </div>
-
-            {/* Submit Button */}
-            <div className="flex gap-4">
-              <button
-                type="submit"
-                disabled={submitting || !resumeFile}
-                className="flex-1 bg-primary text-primary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submitting ? 'Submitting...' : 'Submit Application'}
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate(`/jobs/${jobId}`)}
-                className="flex-1 bg-secondary text-secondary-foreground py-3 rounded-lg font-medium hover:opacity-90 transition-opacity"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="flex-1 bg-secondary text-foreground py-4 rounded-xl font-bold hover:bg-secondary/80 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
+
+// Reusable Components
+const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+  <div className="mb-10">
+    <h3 className="text-xl font-semibold text-foreground mb-5">{title}</h3>
+    <div className="space-y-6">{children}</div>
+  </div>
+);
+
+const Input: React.FC<{
+  name: string;
+  label: string;
+  type?: string;
+  formik: any;
+  placeholder?: string;
+}> = ({ name, label, type = 'text', formik, placeholder }) => (
+  <div>
+    <label className="block text-sm font-medium text-foreground mb-2">
+      {label}
+    </label>
+    <input
+      {...formik.getFieldProps(name)}
+      type={type}
+      placeholder={placeholder}
+      className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-primary focus:border-primary transition ${
+        formik.touched[name] && formik.errors[name]
+          ? 'border-red-500'
+          : 'border-border'
+      }`}
+    />
+    {formik.touched[name] && formik.errors[name] && (
+      <p className="text-red-500 text-sm mt-1">{formik.errors[name]}</p>
+    )}
+  </div>
+);
+
+// Screens
+const Loading = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <div className="text-center">
+      <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <p className="text-muted-foreground">Loading job details...</p>
+    </div>
+  </div>
+);
+
+const NotFound = ({ navigate }: { navigate: (path: string) => void }) => (
+  <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="text-center max-w-md">
+      <h1 className="text-4xl font-bold text-foreground mb-4">Job Not Found</h1>
+      <p className="text-muted-foreground mb-8">
+        The job you're looking for doesn't exist or has been removed.
+      </p>
+      <button
+        onClick={() => navigate('/jobs')}
+        className="text-primary hover:underline flex items-center gap-2 mx-auto"
+      >
+        <ArrowLeft className="w-5 h-5" />
+        Back to Jobs
+      </button>
+    </div>
+  </div>
+);
+
+const SuccessScreen = () => (
+  <div className="min-h-screen bg-background flex items-center justify-center">
+    <div className="text-center max-w-md animate-fade-in">
+      <CheckCircle className="w-24 h-24 text-green-500 mx-auto mb-6" />
+      <h1 className="text-4xl font-bold text-foreground mb-4">
+        Application Submitted!
+      </h1>
+      <p className="text-lg text-muted-foreground mb-2">
+        Thank you for applying. We'll review your profile and get back soon.
+      </p>
+      <p className="text-sm text-muted-foreground">
+        Redirecting to jobs in 3 seconds...
+      </p>
+    </div>
+  </div>
+);
