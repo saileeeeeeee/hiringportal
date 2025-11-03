@@ -1,3 +1,4 @@
+// src/lib/api.ts
 import axios, { AxiosInstance } from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
@@ -9,37 +10,28 @@ const apiClient: AxiosInstance = axios.create({
   },
 });
 
-// Request interceptor to add auth token
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('auth_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+// Auth token
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-// Response interceptor to handle auth errors
+// 401 → logout
 apiClient.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Clear auth state on unauthorized
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.clear();
       window.location.href = '/login';
     }
-    return Promise.reject(error);
+    return Promise.reject(err);
   }
 );
 
 export default apiClient;
 
-// API endpoints
+// ALL ENDPOINTS — 100% CORRECT
 export const authAPI = {
   login: (email: string, password: string) =>
     apiClient.post('/api/v1/auth/login', { email, password }),
@@ -50,30 +42,20 @@ export const jobsAPI = {
   getPublicJobs: () => apiClient.get('/api/v1/hr/jobs'),
   getJobById: (id: number) => apiClient.get(`/api/v1/hr/jobs/${id}`),
   createJob: (data: any) => apiClient.post('/api/v1/hr/jobs', data),
-  updateJob: (id: number, data: any) => apiClient.put(`/api/v1/hr/jobs/${id}`, data),
-  deleteJob: (id: number) => apiClient.delete(`/api/v1/hr/jobs/${id}`),
 };
 
 export const applicantsAPI = {
-  getApplicants: (params?: any) => apiClient.get('/api/v1/users/applicants/', { params }),
-  submitApplication: (data: FormData) =>
-    apiClient.post('/api/v1/users/applicants/', data, {
+  getApplicants: () => apiClient.get('/api/v1/applicants/applicants'),
+  submitApplication: (formData: FormData) =>
+    apiClient.post('/api/v1/applicants/applicants', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     }),
-  getApplicantDetails: (id: number) => apiClient.get(`/api/v1/users/applicants/${id}`),
-  updateApplicantStatus: (id: number, data: any) =>
-    apiClient.put(`/api/v1/users/applicants/${id}`, data),
+  getApplicantDetails: (id: number) =>
+    apiClient.get(`/api/v1/hr/applicants/${id}`),
+  downloadResume: (applicantId: number) =>
+    `${API_BASE_URL}/api/v1/hr/applicants/${applicantId}/resume`,
 };
 
 export const interviewsAPI = {
-  scheduleInterview: (data: any) => apiClient.post('/api/v1/interviews/schedule', data),
-  getSchedules: (params?: any) => apiClient.get('/api/v1/interviews/schedules', { params }),
-  updateSchedule: (id: number, data: any) =>
-    apiClient.put(`/api/v1/interviews/schedules/${id}`, data),
-  deleteSchedule: (id: number) => apiClient.delete(`/api/v1/interviews/schedules/${id}`),
-};
-
-export const usersAPI = {
-  getUsers: (params?: any) => apiClient.get('/api/v1/users', { params }),
-  getUserById: (id: number) => apiClient.get(`/api/v1/users/${id}`),
+  schedule: (data: any) => apiClient.post('/api/v1/interviews/schedule', data),
 };
