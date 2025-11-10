@@ -8,6 +8,7 @@ pydantic[email]
 pypdf
 sentence-transformers
 nltk
+PyPDF2
 
 
 

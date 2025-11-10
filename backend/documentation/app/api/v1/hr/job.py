@@ -61,9 +61,3 @@ def read_job(job_id: int, db: Session = Depends(get_db)):
             status_code=500,
             detail=f"Database error: {str(exc)}"
         ) from exc
-    
-
-
-
-
-    

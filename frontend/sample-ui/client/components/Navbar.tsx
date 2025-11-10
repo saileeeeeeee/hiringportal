@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, Moon, Sun, Menu, X } from 'lucide-react';
+import { LogOut, Moon, Sun, Menu, X, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { logoutUser } from '@/store/authSlice';
@@ -25,6 +25,8 @@ export default function Navbar() {
         : 'text-muted-foreground hover:text-foreground'
     }`;
 
+  const isHR = user?.role === 'HR' || user?.role === 'Management';
+
   return (
     <nav className="bg-card border-b border-border sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -38,7 +40,7 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop Menu */}
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center gap-6">
             {!isAuthenticated ? (
               <>
                 <Link to="/" className={navLinkClass('/')}>
@@ -59,9 +61,21 @@ export default function Navbar() {
                 <Link to="/hr/applicants" className={navLinkClass('/hr/applicants')}>
                   Applicants
                 </Link>
-                {(user?.role === 'HR' || user?.role === 'Management') && (
+                {isHR && (
                   <Link to="/hr/interviews" className={navLinkClass('/hr/interviews')}>
                     Interviews
+                  </Link>
+                )}
+
+                {/* Create Job Button - Only for HR */}
+                {isHR && (
+                  <Link
+                    to="/hr/jobs/new"  // Recommended: use /new route
+                    className="bg-primary text-primary-foreground px-4 py-2 rounded-lg font-medium hover:opacity-90 transition-opacity flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span className="hidden lg:inline">Create Job</span>
+                    <span className="lg:hidden">New</span>
                   </Link>
                 )}
               </>
@@ -121,18 +135,21 @@ export default function Navbar() {
                 <Link
                   to="/"
                   className="block px-4 py-2 hover:bg-secondary rounded-lg transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Home
                 </Link>
                 <Link
                   to="/jobs"
                   className="block px-4 py-2 hover:bg-secondary rounded-lg transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Browse Jobs
                 </Link>
                 <Link
                   to="/login"
                   className="block px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium text-center"
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Sign In
                 </Link>
@@ -142,35 +159,60 @@ export default function Navbar() {
                 <Link
                   to="/hr/dashboard"
                   className="block px-4 py-2 hover:bg-secondary rounded-lg transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Dashboard
                 </Link>
                 <Link
                   to="/hr/jobs"
                   className="block px-4 py-2 hover:bg-secondary rounded-lg transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Jobs
                 </Link>
                 <Link
                   to="/hr/applicants"
                   className="block px-4 py-2 hover:bg-secondary rounded-lg transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
                 >
                   Applicants
                 </Link>
-                {(user?.role === 'HR' || user?.role === 'Management') && (
+                {isHR && (
                   <Link
                     to="/hr/interviews"
                     className="block px-4 py-2 hover:bg-secondary rounded-lg transition-colors"
+                    onClick={() => setMobileMenuOpen(false)}
                   >
                     Interviews
                   </Link>
                 )}
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-2 hover:bg-secondary rounded-lg transition-colors text-destructive"
-                >
-                  Logout
-                </button>
+
+                {/* Create Job in Mobile */}
+                {isHR && (
+                  <Link
+                    to="/hr/jobs/new"
+                    className="block px-4 py-2 bg-primary text-primary-foreground rounded-lg font-medium text-center flex items-center justify-center gap-2"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create Job
+                  </Link>
+                )}
+
+                <div className="border-t border-border pt-2 mt-2">
+                  <div className="px-4 py-2 text-sm text-muted-foreground">
+                    {user.full_name || user.username} ({user.role})
+                  </div>
+                  <button
+                    onClick={() => {
+                      handleLogout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 hover:bg-secondary rounded-lg transition-colors text-destructive"
+                  >
+                    Logout
+                  </button>
+                </div>
               </>
             )}
           </div>
