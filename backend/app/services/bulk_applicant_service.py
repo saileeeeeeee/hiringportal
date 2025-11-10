@@ -210,6 +210,7 @@ def create_applicant_from_pdf(
                 {"url": final_path, "id": applicant_id}
             )
 
+            
             app_params = {
                 "applicant_id": applicant_id,
                 "job_id": job_id,
